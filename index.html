@@ -16,7 +16,8 @@
     label{ display:block; font-weight:600; margin-bottom:6px; font-size:.92rem; }
     select, input[type="date"]{ width:100%; border:1px solid #d1d5db; border-radius:8px; padding:10px; font-size:.95rem; background:#fff; }
     button{ border:0; background:var(--ral-5005); color:#fff; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; transition:.15s transform ease,.15s opacity ease; width:100%; }
-    button:disabled{ opacity:.65; cursor:not-allowed; } button:hover{ transform: translateY(-1px); }
+    button:disabled{ opacity:.65; cursor:not-allowed; }
+    button:hover{ transform: translateY(-1px); }
     .table-wrap{ overflow-x:auto; border-radius:12px; border:1px solid #e5e7eb; background:#fff; margin-top:14px; }
     table{ width:100%; border-collapse:collapse; min-width:900px; }
     thead th{ position:sticky; top:0; background:var(--ral-5005); color:#fff; text-align:left; padding:10px 12px; font-size:.9rem; border-bottom:2px solid #0f3463; }
@@ -80,7 +81,7 @@
   </div>
 <script>
 /** URL de tu Web App (ya incluida) **/
-const API_BASE = "https://script.google.com/macros/s/AKfycbwcOkqQr6IrCXIbcq458bNH4YzJLGMnSUUhiv2m8T_jkmLlhTNpL4vu2iE9XygOMCjo/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbxf6eXk25RA4rNN4anTyyZTn_LwDVJmti3ize8rCuu3lfVe6IP8RVCUo7QiZffv2LuE/exec";
 
 const els = {
   operarioSel: document.getElementById("operarioSel"),
@@ -141,9 +142,13 @@ async function refillClientes(){
 }
 
 async function buscar(){
+  const originalText = els.btnBuscar.textContent;
   try{
     els.btnBuscar.disabled = true;
+    els.btnBuscar.textContent = "Buscando…";
+    els.btnBuscar.setAttribute("aria-busy","true");
     setStatus("Buscando…");
+
     const params = {};
     const op = els.operarioSel.value.trim();
     const cl = els.clienteSel.value.trim();
@@ -159,6 +164,8 @@ async function buscar(){
     setStatus(err.message || "Error en la búsqueda.", "error");
   }finally{
     els.btnBuscar.disabled = false;
+    els.btnBuscar.textContent = originalText || "Buscar";
+    els.btnBuscar.removeAttribute("aria-busy");
   }
 }
 
