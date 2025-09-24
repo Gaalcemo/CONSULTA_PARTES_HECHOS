@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Consulta de REGISTROS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{ --ral-5005:#154889; }
+    *{ box-sizing: border-box; }
+    body{ font-family: Arial, Helvetica, sans-serif; margin:0 auto; padding:16px; max-width:1100px; background:#f6f7fb; color:#222; }
+    h1{ margin:6px 0 16px; font-size:1.35rem; color:#222; }
+    .card{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,.03); }
+    .row{ display:grid; grid-template-columns: repeat(4, minmax(180px,1fr)); gap:12px; margin-bottom: 12px; }
+    @media (max-width: 860px){ .row{ grid-template-columns:1fr 1fr; } }
+    @media (max-width: 520px){ .row{ grid-template-columns:1fr; } }
+    label{ display:block; font-weight:600; margin-bottom:6px; font-size:.92rem; }
+    select, input[type="date"]{ width:100%; border:1px solid #d1d5db; border-radius:8px; padding:10px; font-size:.95rem; background:#fff; }
+    button{ border:0; background:var(--ral-5005); color:#fff; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; transition:.15s transform ease,.15s opacity ease; width:100%; }
+    button:disabled{ opacity:.65; cursor:not-allowed; } button:hover{ transform: translateY(-1px); }
+    .table-wrap{ overflow-x:auto; border-radius:12px; border:1px solid #e5e7eb; background:#fff; margin-top:14px; }
+    table{ width:100%; border-collapse:collapse; min-width:900px; }
+    thead th{ position:sticky; top:0; background:var(--ral-5005); color:#fff; text-align:left; padding:10px 12px; font-size:.9rem; border-bottom:2px solid #0f3463; }
+    tbody td{ background:#fff; color:#111; border-bottom:1px solid #eceff3; border-right:1px solid #f1f5f9; padding:10px 12px; font-size:.92rem; vertical-align:top; word-break:break-word; }
+    tbody tr:last-child td{ border-bottom:none; } tbody td:last-child{ border-right:none; }
+    .muted{ color:#6b7280; font-size:.9rem; } .status{ margin-top:8px; min-height:22px; } .error{ color:#b91c1c; } .ok{ color:#065f46; }
+    .footer-note{ margin-top:10px; font-size:.85rem; color:#6b7280; }
+  </style>
+</head>
+<body>
+  <h1>Consulta de REGISTROS</h1>
+  <div class="card" id="controls">
+    <div class="row">
+      <div>
+        <label for="operarioSel">OPERARIO</label>
+        <select id="operarioSel" aria-label="Selecciona Operario">
+          <option value="">Cargando operarios...</option>
+        </select>
+        <div class="muted" id="opsInfo"></div>
+      </div>
+
+      <div>
+        <label for="fechaInput">FECHA DE REALIZACION</label>
+        <input id="fechaInput" type="date" />
+        <div class="muted">Opcional (filtra por esta fecha exacta)</div>
+      </div>
+
+      <div>
+        <label for="clienteSel">CLIENTE</label>
+        <select id="clienteSel" aria-label="Selecciona Cliente">
+          <option value="">(Todos)</option>
+        </select>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">
+        <button id="btnBuscar">Buscar</button>
+        <button id="btnLimpiar" style="background:#6b7280">Limpiar filtros</button>
+      </div>
+    </div>
+    <div class="status muted" id="statusArea"></div>
+  </div>
+
+  <div class="table-wrap">
+    <table id="resultTable" aria-live="polite">
+      <thead>
+        <tr>
+          <th>FECHA DE REALIZACION</th>
+          <th>CLIENTE</th>
+          <th>OPERARIO</th>
+          <th>HORA ENTRADA</th>
+          <th>HORA SALIDA</th>
+          <th>Nº HORAS</th>
+          <th>INSTALACION</th>
+          <th>DESCRIPCION</th>
+        </tr>
+      </thead>
+      <tbody id="resultBody">
+        <tr><td colspan="8" class="muted">Sin resultados.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer-note">
+    Consejo: tras editar el Apps Script, recuerda desplegar **Nueva implementación** del Web App.
+  </div>
+
+<script>
+/** URL de tu Web App (ya incluida) **/
+const API_BASE = "https://script.google.com/macros/s/AKfycbwcOkqQr6IrCXIbcq458bNH4YzJLGMnSUUhiv2m8T_jkmLlhTNpL4vu2iE9XygOMCjo/exec";
+
+const els = {
+  operarioSel: document.getElementById("operarioSel"),
+  clienteSel : document.getElementById("clienteSel"),
+  fechaInput : document.getElementById("fechaInput"),
+  btnBuscar  : document.getElementById("btnBuscar"),
+  btnLimpiar : document.getElementById("btnLimpiar"),
+  status     : document.getElementById("statusArea"),
+  resultBody : document.getElementById("resultBody"),
+  opsInfo    : document.getElementById("opsInfo"),
+};
+
+function setStatus(msg, kind){
+  els.status.textContent = msg || "";
+  els.status.className = "status " + (kind === "error" ? "error" : (kind === "ok" ? "ok" : "muted"));
+}
+
+async function apiGet(path, params = {}){
+  const url = new URL(API_BASE);
+  url.searchParams.set('action', path);
+  for (const [k,v] of Object.entries(params)){
+    if (v !== undefined && v !== null) url.searchParams.set(k, v);
+  }
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text);
+    if (!res.ok || json.ok === false) throw new Error(json.error || `HTTP ${res.status}`);
+    return json;
+  } catch (e) {
+    throw new Error(`No se pudo leer la respuesta del servidor. ¿Publicaste una nueva implementación del Web App?`);
+  }
+}
+
+async function init(){
+  try{
+    setStatus("Cargando operarios…");
+    const opRes = await apiGet('operarios');
+    const ops = opRes.operarios || [];
+    els.operarioSel.innerHTML = '<option value="">(Selecciona)</option>' +
+      ops.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
+    els.opsInfo.textContent = `${ops.length} operario(s) encontrados`;
+
+    await refillClientes();
+    setStatus("Listo.", "ok");
+  }catch(err){
+    setStatus(err.message || "Error al inicializar.", "error");
+    console.error(err);
+  }
+}
+
+async function refillClientes(){
+  const op = els.operarioSel.value.trim();
+  const cl = await apiGet('clientes', op ? { operario: op } : {});
+  const arr = cl.clientes || [];
+  els.clienteSel.innerHTML = '<option value="">(Todos)</option>' +
+    arr.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+}
+
+async function buscar(){
+  try{
+    els.btnBuscar.disabled = true;
+    setStatus("Buscando…");
+    const params = {};
+    const op = els.operarioSel.value.trim();
+    const cl = els.clienteSel.value.trim();
+    const fe = els.fechaInput.value; // yyyy-mm-dd
+    if (op) params.operario = op;
+    if (cl) params.cliente  = cl;
+    if (fe) params.fecha    = fe;
+
+    const res = await apiGet('search', params);
+    paintRows(res.rows || []);
+    setStatus(`Mostrando ${res.total ?? (res.rows || []).length} registro(s).`, "ok");
+  }catch(err){
+    setStatus(err.message || "Error en la búsqueda.", "error");
+  }finally{
+    els.btnBuscar.disabled = false;
+  }
+}
+
+function paintRows(rows){
+  const tb = els.resultBody;
+  tb.innerHTML = "";
+  if (!rows || !rows.length){
+    tb.innerHTML = `<tr><td colspan="8" class="muted">Sin resultados para los filtros seleccionados.</td></tr>`;
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const r of rows){
+    const tr = document.createElement('tr');
+    addCell(tr, r['FECHA DE REALIZACION']);
+    addCell(tr, r['CLIENTE']);
+    addCell(tr, r['OPERARIO']);
+    addCell(tr, r['HORA ENTRADA']);
+    addCell(tr, r['HORA SALIDA']);
+    addCell(tr, r['Nº HORAS']);
+    addCell(tr, r['INSTALACION']);
+    addCell(tr, r['DESCRIPCION']);
+    frag.appendChild(tr);
+  }
+  tb.appendChild(frag);
+}
+
+function addCell(tr, text){
+  const td = document.createElement('td');
+  td.textContent = text ?? '';
+  tr.appendChild(td);
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => (
+    { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]
+  ));
+}
+
+// Eventos
+els.btnBuscar.addEventListener("click", buscar);
+els.btnLimpiar.addEventListener("click", async () => {
+  els.operarioSel.value = "";
+  els.clienteSel.value  = "";
+  els.fechaInput.value  = "";
+  setStatus("Filtros limpiados.");
+  await refillClientes();
+  paintRows([]);
+});
+els.operarioSel.addEventListener("change", async () => {
+  setStatus("Actualizando clientes…");
+  await refillClientes();
+  setStatus("Listo.", "ok");
+});
+
+// Start
+init();
+</script>
+</body>
+</html>
