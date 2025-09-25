@@ -2,59 +2,98 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Consulta de REGISTROS</title>
+  <title>Consulta de REGISTROS – Cliente/Fecha/Operarios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root{ --ral-5005:#154889; }
-    *{ box-sizing: border-box; }
+    :root{ --ral-5005:#154889; --muted:#6b7280; --error:#b91c1c; }
+    *{ box-sizing:border-box; }
     body{ font-family: Arial, Helvetica, sans-serif; margin:0 auto; padding:16px; max-width:1100px; background:#f6f7fb; color:#222; }
     h1{ margin:6px 0 16px; font-size:1.35rem; color:#222; }
     .card{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,.03); }
     .row{ display:grid; grid-template-columns: repeat(4, minmax(180px,1fr)); gap:12px; margin-bottom: 12px; }
-    @media (max-width: 860px){ .row{ grid-template-columns:1fr 1fr; } }
-    @media (max-width: 520px){ .row{ grid-template-columns:1fr; } }
+    @media (max-width: 1024px){ .row{ grid-template-columns:1fr 1fr; } }
+    @media (max-width: 560px){ .row{ grid-template-columns:1fr; } }
     label{ display:block; font-weight:600; margin-bottom:6px; font-size:.92rem; }
     select, input[type="date"]{ width:100%; border:1px solid #d1d5db; border-radius:8px; padding:10px; font-size:.95rem; background:#fff; }
     button{ border:0; background:var(--ral-5005); color:#fff; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; transition:.15s transform ease,.15s opacity ease; width:100%; }
+    button.secondary{ background:#6b7280; }
+    button.small{ padding:6px 10px; font-weight:600; border-radius:8px; width:auto; }
     button:disabled{ opacity:.65; cursor:not-allowed; }
     button:hover{ transform: translateY(-1px); }
+
+    .muted{ color:var(--muted); font-size:.9rem; }
+    .status{ margin-top:8px; min-height:22px; }
+    .error{ color:var(--error); }
+    .ok{ color:#065f46; }
+
+    .chips{
+      display:flex; flex-wrap:wrap; gap:8px; padding:8px; border:1px solid #e5e7eb; border-radius:10px; background:#fafafa;
+      min-height:46px;
+    }
+    .chip{
+      display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid #d1d5db; border-radius:999px; background:#fff;
+      font-size:.9rem;
+    }
+    .chip input{ accent-color: var(--ral-5005); }
+    .chip label{ margin:0; font-weight:600; cursor:pointer; }
+
+    .toolbar{
+      display:flex; gap:8px; align-items:center; margin:6px 0 8px;
+    }
+    .toolbar .spacer{ flex:1; }
+
     .table-wrap{ overflow-x:auto; border-radius:12px; border:1px solid #e5e7eb; background:#fff; margin-top:14px; }
     table{ width:100%; border-collapse:collapse; min-width:900px; }
     thead th{ position:sticky; top:0; background:var(--ral-5005); color:#fff; text-align:left; padding:10px 12px; font-size:.9rem; border-bottom:2px solid #0f3463; }
     tbody td{ background:#fff; color:#111; border-bottom:1px solid #eceff3; border-right:1px solid #f1f5f9; padding:10px 12px; font-size:.92rem; vertical-align:top; word-break:break-word; }
     tbody tr:last-child td{ border-bottom:none; } tbody td:last-child{ border-right:none; }
-    .muted{ color:#6b7280; font-size:.9rem; } .status{ margin-top:8px; min-height:22px; } .error{ color:#b91c1c; } .ok{ color:#065f46; }
-    .footer-note{ margin-top:10px; font-size:.85rem; color:#6b7280; }
+
+    .req::after{ content:" *"; color:var(--error); font-weight:700; }
+    .help{ font-size:.85rem; color:var(--muted); margin-top:4px; }
   </style>
 </head>
 <body>
-  <h1>Consulta de REGISTROS</h1>
+  <h1>Consulta de REGISTROS (Cliente → Fecha → Operarios)</h1>
+
   <div class="card" id="controls">
     <div class="row">
+      <!-- CLIENTE (OBLIGATORIO) -->
       <div>
-        <label for="operarioSel">OPERARIO</label>
-        <select id="operarioSel" aria-label="Selecciona Operario">
-          <option value="">Cargando operarios...</option>
-        </select>
-        <div class="muted" id="opsInfo"></div>
-      </div>
-
-      <div>
-        <label for="fechaInput">FECHA DE REALIZACION</label>
-        <input id="fechaInput" type="date" />
-        <div class="muted">Opcional (filtra por esta fecha exacta)</div>
-      </div>
-
-      <div>
-        <label for="clienteSel">CLIENTE</label>
+        <label for="clienteSel" class="req">CLIENTE</label>
         <select id="clienteSel" aria-label="Selecciona Cliente">
-          <option value="">(Todos)</option>
+          <option value="">(Selecciona un cliente)</option>
         </select>
+        <div class="help">Primero elige el cliente.</div>
       </div>
 
+      <!-- FECHA (OBLIGATORIO) -->
+      <div>
+        <label for="fechaInput" class="req">FECHA DE REALIZACION</label>
+        <input id="fechaInput" type="date" />
+        <div class="help">Luego elige la fecha exacta.</div>
+      </div>
+
+      <!-- OPERARIOS (CHECKBOXES DINÁMICOS) -->
+      <div style="grid-column: span 2;">
+        <label>OPERARIOS (resultado de cliente + fecha)</label>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+          <button id="btnSelectAll" class="small" disabled>Marcar todo</button>
+          <button id="btnUnselectAll" class="small secondary" disabled>Desmarcar todo</button>
+          <div class="spacer"></div>
+          <span class="muted" id="opsInfo"></span>
+        </div>
+
+        <div id="operariosBox" class="chips">
+          <span class="muted">Selecciona cliente y fecha para ver operarios…</span>
+        </div>
+      </div>
+
+      <!-- BOTONES -->
       <div style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end;">
-        <button id="btnBuscar">Buscar</button>
-        <button id="btnLimpiar" style="background:#6b7280">Limpiar filtros</button>
+        <button id="btnBuscar" disabled>Buscar</button>
+        <button id="btnLimpiar" class="secondary">Limpiar filtros</button>
       </div>
     </div>
     <div class="status muted" id="statusArea"></div>
@@ -79,14 +118,17 @@
       </tbody>
     </table>
   </div>
+
 <script>
-/** URL de tu Web App (ya incluida) **/
+/** URL del Web App (la tuya) **/
 const API_BASE = "https://script.google.com/macros/s/AKfycbwk6FXT78z7HDhcJFobmYbomKuk9AdfDotvRWEa4ekq-u2bTQKqNGxIKlOa5m7TNt6L/exec";
 
 const els = {
-  operarioSel: document.getElementById("operarioSel"),
   clienteSel : document.getElementById("clienteSel"),
   fechaInput : document.getElementById("fechaInput"),
+  operariosBox: document.getElementById("operariosBox"),
+  btnSelectAll: document.getElementById("btnSelectAll"),
+  btnUnselectAll: document.getElementById("btnUnselectAll"),
   btnBuscar  : document.getElementById("btnBuscar"),
   btnLimpiar : document.getElementById("btnLimpiar"),
   status     : document.getElementById("statusArea"),
@@ -111,37 +153,106 @@ async function apiGet(path, params = {}){
     const json = JSON.parse(text);
     if (!res.ok || json.ok === false) throw new Error(json.error || `HTTP ${res.status}`);
     return json;
-  } catch (e) {
-    throw new Error(`No se pudo leer la respuesta del servidor. ¿Publicaste una nueva implementación del Web App?`);
+  } catch {
+    throw new Error(`No se pudo leer la respuesta del servidor.`);
   }
+}
+
+/** Debe haber: cliente, fecha y >=1 operario marcado */
+function enableSearchIfReady(){
+  const hasCliente = !!els.clienteSel.value.trim();
+  const hasFecha   = !!els.fechaInput.value.trim();
+  const hasOps     = els.operariosBox.querySelectorAll('input[type="checkbox"]:checked').length > 0;
+  const ok = hasCliente && hasFecha && hasOps;
+  els.btnBuscar.disabled = !ok;
+  return ok;
 }
 
 async function init(){
   try{
-    setStatus("Cargando operarios…");
-    const opRes = await apiGet('operarios');
-    const ops = opRes.operarios || [];
-    els.operarioSel.innerHTML = '<option value="">(Selecciona)</option>' +
-      ops.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
-    els.opsInfo.textContent = `${ops.length} operario(s) encontrados`;
-
-    await refillClientes();
+    setStatus("Cargando clientes…");
+    const cl = await apiGet('clientes');
+    const arr = cl.clientes || [];
+    els.clienteSel.innerHTML = '<option value="">(Selecciona un cliente)</option>' +
+      arr.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
     setStatus("Listo.", "ok");
   }catch(err){
     setStatus(err.message || "Error al inicializar.", "error");
-    console.error(err);
   }
 }
 
-async function refillClientes(){
-  const op = els.operarioSel.value.trim();
-  const cl = await apiGet('clientes', op ? { operario: op } : {});
-  const arr = cl.clientes || [];
-  els.clienteSel.innerHTML = '<option value="">(Todos)</option>' +
-    arr.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+function setToolbarEnabled(enabled){
+  els.btnSelectAll.disabled = !enabled;
+  els.btnUnselectAll.disabled = !enabled;
+}
+
+function renderOperariosCheckboxes(operarios){
+  els.operariosBox.innerHTML = "";
+  if (!operarios || !operarios.length){
+    els.operariosBox.innerHTML = `<span class="muted">No hay operarios para ese cliente y fecha.</span>`;
+    els.opsInfo.textContent = "";
+    setToolbarEnabled(false);
+    enableSearchIfReady();
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  operarios.forEach((op, i) => {
+    const id = `op_${i}`;
+    const wrap = document.createElement('div');
+    wrap.className = "chip";
+    wrap.innerHTML = `
+      <input type="checkbox" id="${id}" value="${escapeHtml(op)}">
+      <label for="${id}">${escapeHtml(op)}</label>
+    `;
+    frag.appendChild(wrap);
+  });
+  els.operariosBox.appendChild(frag);
+  els.opsInfo.textContent = `${operarios.length} operario(s) encontrados para los filtros.`;
+
+  // Eventos de cambio para habilitar Buscar
+  els.operariosBox.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', enableSearchIfReady);
+  });
+
+  // Toolbar activa
+  setToolbarEnabled(true);
+  enableSearchIfReady();
+}
+
+async function refreshOperariosFromFilters(){
+  els.operariosBox.innerHTML = `<span class="muted">Selecciona cliente y fecha para ver operarios…</span>`;
+  els.opsInfo.textContent = "";
+  setToolbarEnabled(false);
+  enableSearchIfReady();
+
+  const cliente = els.clienteSel.value.trim();
+  const fecha   = els.fechaInput.value.trim();
+  if (!cliente || !fecha) return;
+
+  try{
+    setStatus("Buscando operarios por cliente y fecha…");
+    const res = await apiGet('search', { cliente, fecha });
+    const rows = res.rows || [];
+    const set = new Set(rows.map(r => r['OPERARIO']).filter(Boolean));
+    const operarios = Array.from(set).sort((a,b)=> a.localeCompare(b,'es',{sensitivity:'base'}));
+    renderOperariosCheckboxes(operarios);
+    setStatus("Listo.", "ok");
+  }catch(err){
+    setStatus(err.message || "No se pudieron cargar operarios.", "error");
+  }
+}
+
+function selectAllOperarios(select){
+  const cbs = els.operariosBox.querySelectorAll('input[type="checkbox"]');
+  cbs.forEach(cb => { cb.checked = !!select; });
+  enableSearchIfReady();
 }
 
 async function buscar(){
+  if (!enableSearchIfReady()){
+    setStatus("Debes seleccionar CLIENTE, FECHA y al menos un OPERARIO.", "error");
+    return;
+  }
   const originalText = els.btnBuscar.textContent;
   try{
     els.btnBuscar.disabled = true;
@@ -149,21 +260,21 @@ async function buscar(){
     els.btnBuscar.setAttribute("aria-busy","true");
     setStatus("Buscando…");
 
-    const params = {};
-    const op = els.operarioSel.value.trim();
-    const cl = els.clienteSel.value.trim();
-    const fe = els.fechaInput.value; // yyyy-mm-dd
-    if (op) params.operario = op;
-    if (cl) params.cliente  = cl;
-    if (fe) params.fecha    = fe;
+    const cliente = els.clienteSel.value.trim();
+    const fecha   = els.fechaInput.value.trim();
+    const selOps  = Array.from(els.operariosBox.querySelectorAll('input[type="checkbox"]:checked')).map(i => i.value);
 
-    const res = await apiGet('search', params);
-    paintRows(res.rows || []);
-    setStatus(`Mostrando ${res.total ?? (res.rows || []).length} registro(s).`, "ok");
+    const res = await apiGet('search', { cliente, fecha });
+    let rows = res.rows || [];
+    const setSel = new Set(selOps);
+    rows = rows.filter(r => setSel.has(r['OPERARIO']));
+
+    paintRows(rows);
+    setStatus(`Mostrando ${rows.length} registro(s).`, "ok");
   }catch(err){
     setStatus(err.message || "Error en la búsqueda.", "error");
   }finally{
-    els.btnBuscar.disabled = false;
+    els.btnBuscar.disabled = !enableSearchIfReady();
     els.btnBuscar.textContent = originalText || "Buscar";
     els.btnBuscar.removeAttribute("aria-busy");
   }
@@ -205,23 +316,25 @@ function escapeHtml(s){
 }
 
 // Eventos
+els.clienteSel.addEventListener("change", refreshOperariosFromFilters);
+els.fechaInput.addEventListener("change", refreshOperariosFromFilters);
+els.btnSelectAll.addEventListener("click", () => selectAllOperarios(true));
+els.btnUnselectAll.addEventListener("click", () => selectAllOperarios(false));
 els.btnBuscar.addEventListener("click", buscar);
 els.btnLimpiar.addEventListener("click", async () => {
-  els.operarioSel.value = "";
   els.clienteSel.value  = "";
   els.fechaInput.value  = "";
-  setStatus("Filtros limpiados.");
-  await refillClientes();
+  els.operariosBox.innerHTML = `<span class="muted">Selecciona cliente y fecha para ver operarios…</span>`;
+  els.opsInfo.textContent = "";
+  setToolbarEnabled(false);
   paintRows([]);
-});
-els.operarioSel.addEventListener("change", async () => {
-  setStatus("Actualizando clientes…");
-  await refillClientes();
-  setStatus("Listo.", "ok");
+  enableSearchIfReady();
+  setStatus("Filtros limpiados.");
 });
 
-// Start
+// Inicio
 init();
+enableSearchIfReady();
 </script>
 </body>
 </html>
